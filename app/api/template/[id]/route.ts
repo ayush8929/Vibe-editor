@@ -1,16 +1,12 @@
-import {
-  readTemplateStructureFromJson,
-  saveTemplateStructureToJson,
-} from "@/modules/playground/lib/path-to-json";
+import { scanTemplateDirectory } from "@/modules/playground/lib/path-to-json";
 import { db } from "@/lib/db";
 import { templatePaths } from "@/lib/template";
 import path from "path";
-import fs from "fs/promises";
 import { NextRequest } from "next/server";
 
 function validateJsonStructure(data: unknown): boolean {
   try {
-    JSON.parse(JSON.stringify(data)); // Ensures it's serializable
+    JSON.parse(JSON.stringify(data));
     return true;
   } catch (error) {
     console.error("Invalid JSON structure:", error);
@@ -45,20 +41,15 @@ export async function GET(
 
   try {
     const inputPath = path.join(process.cwd(), templatePath);
-    const outputFile = path.join(process.cwd(), `output/${templateKey}.json`);
 
-    await saveTemplateStructureToJson(inputPath, outputFile);
-    const result = await readTemplateStructureFromJson(outputFile);
+    const result = await scanTemplateDirectory(inputPath);
 
-    // Validate the JSON structure before saving
     if (!validateJsonStructure(result.items)) {
       return Response.json(
         { error: "Invalid JSON structure" },
         { status: 500 },
       );
     }
-
-    await fs.unlink(outputFile);
 
     return Response.json(
       { success: true, templateJson: result },
