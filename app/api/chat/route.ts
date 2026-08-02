@@ -1,9 +1,7 @@
-import { db } from "@/lib/db";
-import { error } from "console";
 import { NextRequest, NextResponse } from "next/server";
 
 interface ChatMessage {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
@@ -24,35 +22,38 @@ Always provide clear, practical answers. Use proper code formatting when showing
 
   const fullMessages = [{ role: "system", content: systemPrompt }, ...messages];
 
-  const prompt = fullMessages
-    .map((msg) => `${msg.role}: ${msg.content}`)
-    .join("\n\n");
-
   try {
-    const response = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "codellama:latest",
-        prompt: prompt,
-        stream: false,
-        options: {
-          temperature: 0.7, // Controls randomness (0-1)
-          max_tokens: 1000, // Maximum response length
-          top_p: 0.9, // controls diversity
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
         },
-      }),
-    });
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile", // fast, free, strong for coding tasks
+          messages: fullMessages,
+          temperature: 0.7,
+          max_tokens: 1000,
+          top_p: 0.9,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Groq API error (${response.status}): ${errText}`);
+    }
 
     const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
 
-    if (!data.response) {
+    if (!content) {
       throw new Error("No response from AI model");
     }
 
-    return data.response.trim();
+    return content.trim();
   } catch (error) {
     console.error("AI generation error:", error);
     throw new Error("Failed to generate AI response");
@@ -64,15 +65,13 @@ export async function POST(req: NextRequest) {
     const body: ChatRequest = await req.json();
     const { message, history = [] } = body;
 
-    // Validate input
     if (!message || typeof message !== "string") {
       return NextResponse.json(
         { error: "Message is required and must be a string" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Validate history format
     const validHistory = Array.isArray(history)
       ? history.filter(
           (msg) =>
@@ -80,7 +79,7 @@ export async function POST(req: NextRequest) {
             typeof msg === "object" &&
             typeof msg.role === "string" &&
             typeof msg.content === "string" &&
-            ["user", "assistant"].includes(msg.role)
+            ["user", "assistant"].includes(msg.role),
         )
       : [];
 
@@ -91,11 +90,7 @@ export async function POST(req: NextRequest) {
       { role: "user", content: message },
     ];
 
-    //   Generate ai response
-
     const aiResponse = await generateAIResponse(messages);
-
-
 
     return NextResponse.json({
       response: aiResponse,
@@ -113,7 +108,7 @@ export async function POST(req: NextRequest) {
         details: errorMessage,
         timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
