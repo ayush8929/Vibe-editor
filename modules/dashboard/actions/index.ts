@@ -151,3 +151,7 @@ export const duplicateProjectById = async (id: string) => {
     console.error("Error duplicating project:", error);
   }
 };
+
+export const duplicateProjectAction = async (id: string): Promise<void> => {
+  await duplicateProjectById(id);
+};
