@@ -26,12 +26,39 @@ export async function GET(
 
   const playground = await db.playground.findUnique({
     where: { id },
+    include: { templateFiles: true }, // NEW — needed to read saved GitHub files
   });
 
   if (!playground) {
     return Response.json({ error: "Playground not found" }, { status: 404 });
   }
 
+  // NEW: GitHub-imported playgrounds don't have a local folder to scan —
+  // their files were saved to TemplateFile at import time, so read from there.
+  if (playground.template === "GITHUB") {
+    const saved = playground.templateFiles[0];
+
+    if (!saved) {
+      return Response.json(
+        { error: "No files found for this playground" },
+        { status: 404 },
+      );
+    }
+
+    if (!validateJsonStructure(saved.content)) {
+      return Response.json(
+        { error: "Invalid JSON structure" },
+        { status: 500 },
+      );
+    }
+
+    return Response.json(
+      { success: true, templateJson: saved.content },
+      { status: 200 },
+    );
+  }
+
+  // Existing logic — unchanged, still used for REACT/NEXTJS/EXPRESS/VUE/HONO/ANGULAR
   const templateKey = playground.template as keyof typeof templatePaths;
   const templatePath = templatePaths[templateKey];
 

@@ -62,6 +62,7 @@ enum Templates {
   VUE
   HONO
   ANGULAR
+  GITHUB
 }
 model Playground {
   id  String @id @default(cuid()) @map("_id")

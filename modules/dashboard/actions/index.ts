@@ -155,3 +155,32 @@ export const duplicateProjectById = async (id: string) => {
 export const duplicateProjectAction = async (id: string): Promise<void> => {
   await duplicateProjectById(id);
 };
+
+export const createPlaygroundFromRepo = async (data: {
+  title: string;
+  templateJson: unknown;
+}) => {
+  const user = await currentUser();
+  const { title, templateJson } = data;
+
+  try {
+    const playground = await db.playground.create({
+      data: {
+        title,
+        template: "GITHUB",
+        userId: user?.id!,
+        templateFiles: {
+          create: {
+            content: templateJson as any,
+          },
+        },
+      },
+    });
+
+    revalidatePath("/dashboard");
+    return { success: true, playground };
+  } catch (error) {
+    console.error("Error creating playground from repo:", error);
+    return { success: false, error: "Failed to create playground" };
+  }
+};
